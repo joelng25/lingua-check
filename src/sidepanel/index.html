@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LinguaCheck — Errores</title>
+    <link rel="stylesheet" href="./sidepanel.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Errores detectados</h1>
+      <p id="meta">Escribe en un campo de texto para ver sugerencias.</p>
+      <div id="stats" class="stats" hidden></div>
+    </header>
+
+    <div id="empty" class="empty">No hay errores en el campo activo.</div>
+    <ul id="matches"></ul>
+
+    <script type="module" src="./sidepanel.ts"></script>
+  </body>
+</html>

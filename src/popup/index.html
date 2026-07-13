@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LinguaCheck</title>
+    <style>
+      body {
+        width: 280px;
+        margin: 0;
+        padding: 16px;
+        font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+        color: #111827;
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: 18px;
+      }
+
+      p {
+        margin: 0 0 16px;
+        color: #6b7280;
+        font-size: 13px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+
+      select,
+      button,
+      a {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      select {
+        margin-top: 6px;
+        padding: 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+
+      button,
+      a {
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      #panel {
+        margin-bottom: 10px;
+        background: #059669;
+        color: white;
+      }
+
+      #toggle {
+        background: #2563eb;
+        color: white;
+      }
+
+      #toggle.off {
+        background: #6b7280;
+      }
+
+      #site {
+        margin-bottom: 10px;
+        background: #f3f4f6;
+        color: #111827;
+      }
+
+      a {
+        background: #e5e7eb;
+        color: #111827;
+      }
+
+      .shortcut {
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>LinguaCheck</h1>
+    <p>Corrector de ortografía y gramática</p>
+
+    <div class="row">
+      <span>Estado</span>
+      <strong id="status">Activo</strong>
+    </div>
+
+    <label>
+      Idioma
+      <select id="language">
+        <option value="es">Español</option>
+        <option value="en-US">English (US)</option>
+        <option value="en-GB">English (UK)</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="pt-BR">Português (BR)</option>
+      </select>
+    </label>
+
+    <p class="shortcut">Atajo: Ctrl + . para aplicar la primera sugerencia</p>
+
+    <button id="panel" type="button">Ver panel de errores</button>
+    <button id="toggle" type="button">Desactivar</button>
+    <button id="site" type="button">Desactivar en este sitio</button>
+    <a id="options" href="#">Abrir opciones</a>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>
