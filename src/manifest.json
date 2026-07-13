@@ -2,8 +2,12 @@
   "manifest_version": 3,
   "name": "LinguaCheck",
   "description": "Corrector de ortografía y gramática en tiempo real para Gmail, Google Docs, LinkedIn y más.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minimum_chrome_version": "116",
+  "homepage_url": "https://github.com/joelng25/lingua-check",
+  "author": {
+    "email": "joelnogao625@gmail.com"
+  },
   "icons": {
     "16": "src/icons/icon16.png",
     "48": "src/icons/icon48.png",

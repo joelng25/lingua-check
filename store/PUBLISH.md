@@ -39,7 +39,7 @@ cd C:\Users\joeln\lingua-check
 npm run package:store
 ```
 
-Esto crea: `release/lingua-check-v1.0.0.zip`
+Esto crea: `release/lingua-check-v1.0.1.zip` (o la versión actual del manifest)
 
 **Importante:** el ZIP debe contener `manifest.json` en la raíz (no dentro de una carpeta `dist/`). El script ya lo hace correctamente.
 
