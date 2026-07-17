@@ -1,123 +1,153 @@
 # Textos para Chrome Web Store — LinguaCheck
 
+> **Importante:** No listes nombres de sitios web (Gmail, LinkedIn, etc.) en título, resumen ni descripción. Google lo considera spam de palabras clave.
+
 ## Nombre
 LinguaCheck — Corrector de gramática
 
 ## Resumen corto (132 caracteres máx.)
-Corrector de ortografía y gramática en Gmail, Google Docs, LinkedIn, WhatsApp Web y cualquier campo de texto.
+
+**Español (recomendado):**
+```
+Corrector de ortografía y gramática en tiempo real mientras escribes en campos de texto en la web.
+```
+
+**English:**
+```
+Real-time spelling and grammar checker for text fields as you write on the web.
+```
+
+---
 
 ## Descripción detallada (español)
 
-LinguaCheck te ayuda a escribir mejor en cualquier página web. Detecta errores de ortografía y gramática mientras escribes y te muestra sugerencias para corregirlos al instante.
+```
+LinguaCheck revisa tu escritura mientras escribes en la web. Detecta errores de ortografía y gramática y te muestra sugerencias que puedes aplicar al instante.
 
-**Características principales**
-- Subrayados en tiempo real en campos de texto
-- Panel lateral con lista completa de errores
-- Atajo Ctrl + . para aplicar la primera sugerencia
-- Diccionario personal y reglas ignoradas
-- Soporte para español, inglés, francés, alemán y portugués
-- Compatible con Gmail, Google Docs, LinkedIn, X, Slack, Reddit, Discord y WhatsApp Web
+Características:
+• Subrayados en tiempo real en campos de texto editables
+• Panel lateral con la lista completa de errores
+• Atajo Ctrl + . para aplicar la primera sugerencia
+• Diccionario personal y reglas que puedes ignorar
+• Varios idiomas: español, inglés, francés, alemán y portugués
+• Activar o desactivar la extensión por sitio
 
-**Cómo funciona**
-1. Escribe en cualquier campo de texto
-2. LinguaCheck revisa tu texto con LanguageTool
-3. Haz clic en un subrayado o abre el panel lateral para ver sugerencias
+Cómo funciona:
+1. Escribe en cualquier campo de texto de una página web
+2. LinguaCheck analiza el texto con LanguageTool
+3. Haz clic en un subrayado o abre el panel lateral
 4. Aplica la corrección con un clic
 
-**Privacidad**
-- Solo se envía a revisión el texto que escribes en campos activos
-- Las preferencias se guardan en tu navegador
-- Puedes desactivar la extensión por sitio
-
-**Atajos**
-- Ctrl + . (Cmd + . en Mac) — aplicar primera sugerencia
+Privacidad:
+Solo se revisa el texto que escribes en campos activos. Las preferencias se guardan en tu navegador. Puedes desactivar la extensión en sitios concretos cuando quieras.
+```
 
 ---
 
 ## Detailed description (English)
 
-LinguaCheck helps you write better on any website. It detects spelling and grammar mistakes as you type and shows inline suggestions you can apply instantly.
+```
+LinguaCheck checks your writing as you type on the web. It finds spelling and grammar mistakes and shows suggestions you can apply right away.
 
-**Key features**
-- Real-time underlines in text fields
-- Side panel with a full error list
-- Ctrl + . shortcut to apply the first suggestion
-- Personal dictionary and ignored rules
-- Spanish, English, French, German, and Portuguese
-- Works on Gmail, Google Docs, LinkedIn, X, Slack, Reddit, Discord, and WhatsApp Web
+Features:
+• Real-time underlines in editable text fields
+• Side panel with a full list of issues
+• Ctrl + . shortcut to apply the first suggestion
+• Personal dictionary and ignorable rules
+• Multiple languages: Spanish, English, French, German, and Portuguese
+• Enable or disable the extension per website
 
-**How it works**
-1. Type in any editable field
-2. LinguaCheck checks your text with LanguageTool
+How it works:
+1. Type in any text field on a web page
+2. LinguaCheck analyzes the text with LanguageTool
 3. Click an underline or open the side panel
-4. Apply fixes in one click
+4. Apply a fix in one click
 
-**Privacy**
-- Only text you type in active fields is checked
-- Preferences are stored in your browser
-- You can disable the extension per site
+Privacy:
+Only text you type in active fields is checked. Settings are stored in your browser. You can turn the extension off for specific sites at any time.
+```
+
+---
+
+## Una sola finalidad (Single purpose)
+
+**Español:**
+```
+Corregir errores de ortografía y gramática en tiempo real mientras el usuario escribe en campos de texto de páginas web, mostrando sugerencias que el usuario puede aplicar.
+```
+
+**English:**
+```
+Check spelling and grammar in real time as the user types in web text fields, and show suggestions the user can apply.
+```
+
+---
+
+## Código remoto (Remote code)
+
+**Respuesta:** No, no estoy usando Código remoto
+
+**Justificación (si piden texto):**
+```
+La extensión no ejecuta código remoto. Toda la lógica está empaquetada en la extensión. Solo se envían peticiones HTTPS a la API de LanguageTool para obtener sugerencias en JSON.
+```
 
 ---
 
 ## Categoría
 Productividad
 
-## Idioma principal del listing
-Español (añade también inglés si puedes)
-
-## Palabras clave sugeridas
-grammar, spell check, corrector, ortografía, gramática, LanguageTool, escritura
-
 ## URL de política de privacidad
-
-Publica la carpeta `docs/` con GitHub Pages. Ver `docs/README.md`.
-
 ```
-https://TU_USUARIO.github.io/lingua-check/
+https://joelng25.github.io/lingua-check/
 ```
 
 Contacto: joelnogao625@gmail.com
 
-## Justificación de permisos (para el formulario de revisión)
+---
+
+## Justificación de permisos
 
 | Permiso | Motivo |
 |---------|--------|
-| `storage` | Guardar idioma, diccionario personal, reglas ignoradas y sitios desactivados |
-| `tabs` | Mostrar el contador de errores en el icono por pestaña |
-| `sidePanel` | Panel lateral con la lista de errores |
-| `host_permissions: api.languagetool.org` | Enviar texto a LanguageTool para obtener correcciones |
-| `content_scripts: <all_urls>` | Detectar campos de texto en los sitios donde el usuario escribe |
-| `all_frames` | Soporte para Gmail y editores en iframes |
-| `optional_host_permissions: localhost` | Permitir servidor LanguageTool local opcional configurado por el usuario |
+| `storage` | Guardar idioma, diccionario, reglas ignoradas y sitios desactivados |
+| `tabs` | Mostrar contador de errores en el icono por pestaña |
+| `sidePanel` | Panel lateral con lista de errores |
+| `scripting` | Integración con editores web que cargan en iframes |
+| `host_permissions: api.languagetool.org` | Obtener sugerencias de corrección |
+| `host_permissions: docs.google.com` | Detectar campos de texto en documentos en línea |
+| `content_scripts: <all_urls>` | Detectar campos editables donde el usuario escribe |
+| `optional_host_permissions: localhost` | Servidor LanguageTool local opcional |
 
-## Declaración de uso de datos (Privacy practices)
+---
 
-En el panel de Chrome Web Store, declara:
+## Privacy practices
 
-- **Website content / User activity**: Sí — el texto que el usuario escribe se envía al servicio de corrección para generar sugerencias.
-- **Personally identifiable information**: No
-- **Health / Financial / Authentication**: No
-- **Uso**: Solo para la funcionalidad principal (corrección de texto)
-- **Se comparte con terceros**: Sí — LanguageTool API (procesamiento del texto para corrección)
-- **Se venden datos**: No
-- **Política de privacidad**: URL pública obligatoria
+| Pregunta | Respuesta |
+|----------|-----------|
+| ¿Recopilas datos? | Sí |
+| Website content | Sí — texto en campos editables activos |
+| Datos personales identificables | No |
+| Uso | Funcionalidad de la extensión |
+| ¿Terceros? | Sí — LanguageTool API |
+| ¿Se venden datos? | No |
 
-## Capturas de pantalla (mínimo 1, recomendado 3–5)
+---
 
-Tamaños aceptados: 1280×800 o 640×400
+## Qué NO poner en el listing (causa rechazo)
 
-Sugerencia de capturas:
-1. Textarea con subrayados rojos y tooltip de sugerencia
-2. Panel lateral con lista de errores y estadísticas
-3. Popup de la extensión con idioma y estado
-4. Gmail o Google Docs con correcciones activas
-5. Opciones con diccionario personal
+❌ Listas de plataformas: Gmail, Google Docs, LinkedIn, X, Slack, Reddit, Discord, WhatsApp  
+❌ "Compatible con todas las webs populares"  
+❌ Palabras clave repetidas: grammar grammar spell check corrector  
+❌ Comparaciones: "como Grammarly", "mejor que LanguageTool"
 
-## Icono promocional (opcional)
-440×280 px — no obligatorio para la primera publicación
+✅ Describe qué hace la extensión, no dónde funciona  
+✅ Menciona "campos de texto en la web" en lugar de nombres de sitios
 
-## Tile promocional pequeño (opcional)
-440×280 px
+---
 
-## Video (opcional)
-YouTube — no obligatorio
+## Notas de versión (v1.0.3 — reenvío)
+
+```
+Corrección de metadatos del listing según políticas de Chrome Web Store.
+```
