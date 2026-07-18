@@ -17,9 +17,10 @@ interface TextSegment {
   end: number;
 }
 
-const INPUT_SELECTOR = "input[type='text'], input[type='search'], input[type='email'], input[type='url'], input:not([type]), textarea";
+const INPUT_SELECTOR =
+  "input[type='text'], input[type='search'], input[type='email'], input[type='url'], input:not([type]), textarea";
 const CONTENTEDITABLE_SELECTOR =
-  '[contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]';
+  "[contenteditable='true'], [contenteditable=''], [contenteditable='plaintext-only']";
 
 function isInputField(element: Element): element is HTMLInputElement | HTMLTextAreaElement {
   if (element instanceof HTMLTextAreaElement) return true;
@@ -37,7 +38,7 @@ function isTopLevelContentEditable(element: Element): element is HTMLElement {
   return (
     element instanceof HTMLElement &&
     element.isContentEditable &&
-    !(element.parentElement?.closest(CONTENTEDITABLE_SELECTOR))
+    !element.parentElement?.closest(CONTENTEDITABLE_SELECTOR)
   );
 }
 
@@ -87,10 +88,11 @@ function createInputAdapter(element: HTMLInputElement | HTMLTextAreaElement): Fi
       const nextValue = value.slice(0, offset) + replacement + value.slice(offset + length);
       const cursor = offset + replacement.length;
 
+      element.focus();
       element.value = nextValue;
       element.setSelectionRange(cursor, cursor);
-      element.focus();
       element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
     },
     getMatchRects: (match) => getInputMatchRects(element, match),
     getMatchText: (match) => element.value.slice(match.offset, match.offset + match.length),
@@ -103,42 +105,109 @@ function createContentEditableAdapter(element: HTMLElement): FieldAdapter {
     kind: "contenteditable",
     getText: () => collectTextSegments(element).text,
     applyReplacement: (offset, length, replacement) => {
-      const range = createDomRange(element, offset, length);
-      if (!range) return;
-
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-
-      if (!document.execCommand("insertText", false, replacement)) {
-        range.deleteContents();
-        range.insertNode(document.createTextNode(replacement));
-      }
-
-      element.dispatchEvent(new Event("input", { bubbles: true }));
+      applyContentEditableReplacement(element, offset, length, replacement);
     },
     getMatchRects: (match) => {
       const range = createDomRange(element, match.offset, match.length);
       if (!range) return [];
       return Array.from(range.getClientRects());
     },
-    getMatchText: (match) => collectTextSegments(element).text.slice(match.offset, match.offset + match.length),
+    getMatchText: (match) =>
+      collectTextSegments(element).text.slice(match.offset, match.offset + match.length),
   };
+}
+
+/**
+ * Replaces text at an exact offset. Avoids execCommand('insertText'), which in
+ * Gmail often inserts at the caret instead of the selected range.
+ */
+function applyContentEditableReplacement(
+  element: HTMLElement,
+  offset: number,
+  length: number,
+  replacement: string,
+): void {
+  element.focus();
+
+  const { text, segments } = collectTextSegments(element);
+  const expected = text.slice(offset, offset + length);
+
+  let range = createDomRangeFromSegments(segments, offset, length);
+
+  if (range && expected && range.toString() !== expected) {
+    range = findRangeByText(segments, expected, offset) ?? range;
+  }
+
+  if (!range && expected) {
+    range = findRangeByText(segments, expected, offset);
+  }
+
+  if (!range) return;
+
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+
+  // Prefer direct DOM mutation so Gmail cannot ignore our selection.
+  range.deleteContents();
+  const node = document.createTextNode(replacement);
+  range.insertNode(node);
+
+  // Normalize adjacent text nodes and place caret after the replacement.
+  node.parentNode?.normalize();
+  const after = document.createRange();
+  after.setStart(node, node.data.length);
+  after.collapse(true);
+  selection?.removeAllRanges();
+  selection?.addRange(after);
+
+  element.dispatchEvent(
+    new InputEvent("input", {
+      bubbles: true,
+      cancelable: true,
+      inputType: "insertReplacementText",
+      data: replacement,
+    }),
+  );
 }
 
 function collectTextSegments(root: HTMLElement): { text: string; segments: TextSegment[] } {
   const segments: TextSegment[] = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let text = "";
-  let node = walker.nextNode() as Text | null;
 
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+
+  let node = walker.nextNode();
   while (node) {
-    const content = node.textContent ?? "";
-    if (content.length > 0) {
-      segments.push({ node, start: text.length, end: text.length + content.length });
-      text += content;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const content = node.textContent ?? "";
+      if (content.length > 0) {
+        segments.push({
+          node: node as Text,
+          start: text.length,
+          end: text.length + content.length,
+        });
+        text += content;
+      }
+    } else if (node instanceof HTMLElement) {
+      const tag = node.tagName;
+      if (tag === "BR") {
+        text += "\n";
+      } else if (
+        (tag === "DIV" || tag === "P" || tag === "LI" || tag === "BLOCKQUOTE") &&
+        text.length > 0 &&
+        !text.endsWith("\n") &&
+        node !== root
+      ) {
+        // Block boundaries in Gmail-like editors act as newlines.
+        const previous = node.previousSibling;
+        if (previous) {
+          text += "\n";
+        }
+      }
     }
-    node = walker.nextNode() as Text | null;
+
+    node = walker.nextNode();
   }
 
   return { text, segments };
@@ -148,31 +217,86 @@ function resolveTextPosition(
   segments: TextSegment[],
   offset: number,
 ): { node: Text; nodeOffset: number } | null {
+  if (segments.length === 0) return null;
+
   for (const segment of segments) {
-    if (offset >= segment.start && offset <= segment.end) {
+    if (offset >= segment.start && offset < segment.end) {
       return { node: segment.node, nodeOffset: offset - segment.start };
+    }
+    if (offset === segment.end) {
+      return { node: segment.node, nodeOffset: segment.node.textContent?.length ?? 0 };
     }
   }
 
-  const last = segments.at(-1);
-  if (!last) return null;
+  if (offset <= segments[0].start) {
+    return { node: segments[0].node, nodeOffset: 0 };
+  }
+
+  const last = segments[segments.length - 1];
   return { node: last.node, nodeOffset: last.node.textContent?.length ?? 0 };
+}
+
+function createDomRangeFromSegments(
+  segments: TextSegment[],
+  offset: number,
+  length: number,
+): Range | null {
+  const start = resolveTextPosition(segments, offset);
+  const end = resolveTextPosition(segments, offset + length);
+  if (!start || !end) return null;
+
+  try {
+    const range = document.createRange();
+    range.setStart(start.node, start.nodeOffset);
+    range.setEnd(end.node, end.nodeOffset);
+    return range;
+  } catch {
+    return null;
+  }
 }
 
 function createDomRange(root: HTMLElement, offset: number, length: number): Range | null {
   const { segments } = collectTextSegments(root);
-  const start = resolveTextPosition(segments, offset);
-  const end = resolveTextPosition(segments, offset + length);
-
-  if (!start || !end) return null;
-
-  const range = document.createRange();
-  range.setStart(start.node, start.nodeOffset);
-  range.setEnd(end.node, end.nodeOffset);
-  return range;
+  return createDomRangeFromSegments(segments, offset, length);
 }
 
-function getInputMatchRects(element: HTMLInputElement | HTMLTextAreaElement, match: GrammarMatch): DOMRect[] {
+function findRangeByText(
+  segments: TextSegment[],
+  needle: string,
+  preferredOffset: number,
+): Range | null {
+  if (!needle || segments.length === 0) return null;
+
+  const fullText = segments.map((segment) => segment.node.textContent ?? "").join("");
+  const occurrences: number[] = [];
+  let from = 0;
+
+  while (from <= fullText.length) {
+    const index = fullText.indexOf(needle, from);
+    if (index === -1) break;
+    occurrences.push(index);
+    from = index + 1;
+  }
+
+  if (occurrences.length === 0) return null;
+
+  let best = occurrences[0];
+  let bestDistance = Math.abs(best - preferredOffset);
+  for (const index of occurrences) {
+    const distance = Math.abs(index - preferredOffset);
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  }
+
+  return createDomRangeFromSegments(segments, best, needle.length);
+}
+
+function getInputMatchRects(
+  element: HTMLInputElement | HTMLTextAreaElement,
+  match: GrammarMatch,
+): DOMRect[] {
   const mirror = document.createElement("div");
   mirror.textContent = element.value || " ";
 

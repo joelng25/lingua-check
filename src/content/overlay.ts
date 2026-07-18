@@ -1,6 +1,7 @@
 import type { GrammarMatch } from "../shared/types";
 import type { FieldAdapter } from "./field-adapter";
 
+const HIT_CLASS = "lc-hit";
 const UNDERLINE_CLASS = "lc-underline";
 const UNDERLINE_ACTIVE_CLASS = "lc-underline-active";
 
@@ -14,6 +15,7 @@ export class OverlayManager {
   private tooltip: HTMLDivElement | null = null;
   private activeField: FieldAdapter | null = null;
   private matches: GrammarMatch[] = [];
+  private hideTimer: number | null = null;
   private onApply: ApplyHandler | null = null;
   private onAddToDictionary: DictionaryHandler | null = null;
   private onIgnoreOccurrence: IgnoreOccurrenceHandler | null = null;
@@ -31,6 +33,14 @@ export class OverlayManager {
     this.tooltip.className = "lc-tooltip";
     this.tooltip.hidden = true;
     document.body.appendChild(this.tooltip);
+
+    this.tooltip.addEventListener("mouseenter", () => this.cancelHide());
+    this.tooltip.addEventListener("mouseleave", () => this.scheduleHide());
+    // Keep focus in the editor when interacting with the tooltip (critical for Gmail).
+    this.tooltip.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
 
     window.addEventListener("scroll", () => this.reposition(), true);
     window.addEventListener("resize", () => this.reposition());
@@ -59,16 +69,16 @@ export class OverlayManager {
   highlightMatch(offset: number, length: number): void {
     if (!this.container) return;
 
-    const underlines = this.container.querySelectorAll<HTMLElement>(`.${UNDERLINE_CLASS}`);
+    const hits = this.container.querySelectorAll<HTMLElement>(`.${HIT_CLASS}`);
     let target: HTMLElement | null = null;
 
-    for (const underline of underlines) {
-      underline.classList.remove(UNDERLINE_ACTIVE_CLASS);
+    for (const hit of hits) {
+      hit.classList.remove(UNDERLINE_ACTIVE_CLASS);
       if (
-        underline.dataset.offset === String(offset) &&
-        underline.dataset.length === String(length)
+        hit.dataset.offset === String(offset) &&
+        hit.dataset.length === String(length)
       ) {
-        target = underline;
+        target = hit;
       }
     }
 
@@ -76,6 +86,14 @@ export class OverlayManager {
 
     target.classList.add(UNDERLINE_ACTIVE_CLASS);
     target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+
+    const match = this.matches.find(
+      (item) => item.offset === offset && item.length === length,
+    );
+    if (match) {
+      const rect = target.getBoundingClientRect();
+      this.showTooltip(match, rect);
+    }
 
     window.setTimeout(() => {
       target?.classList.remove(UNDERLINE_ACTIVE_CLASS);
@@ -96,10 +114,11 @@ export class OverlayManager {
       return;
     }
 
+    const useFixed = field.kind === "googledocs";
+
     for (const match of matches) {
       for (const rect of field.getMatchRects(match)) {
-        const underline = this.createUnderline(match, rect);
-        this.container.appendChild(underline);
+        this.container.appendChild(this.createHitArea(match, rect, useFixed));
       }
     }
   }
@@ -111,36 +130,49 @@ export class OverlayManager {
     this.hideTooltip();
   }
 
-  private createUnderline(match: GrammarMatch, rect: DOMRect): HTMLSpanElement {
+  private createHitArea(
+    match: GrammarMatch,
+    rect: DOMRect,
+    useFixed = false,
+  ): HTMLSpanElement {
+    const hit = document.createElement("span");
+    hit.className = HIT_CLASS;
+    hit.dataset.offset = String(match.offset);
+    hit.dataset.length = String(match.length);
+
+    const paddingY = 2;
+    const top = useFixed
+      ? rect.top - paddingY
+      : rect.top + window.scrollY - paddingY;
+    const left = useFixed ? rect.left : rect.left + window.scrollX;
+
+    Object.assign(hit.style, {
+      position: useFixed ? "fixed" : "absolute",
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${Math.max(rect.width, 4)}px`,
+      height: `${Math.max(rect.height + paddingY * 2, 14)}px`,
+    });
+
     const underline = document.createElement("span");
     underline.className = UNDERLINE_CLASS;
-    underline.dataset.offset = String(match.offset);
-    underline.dataset.length = String(match.length);
+    hit.appendChild(underline);
 
-    Object.assign(underline.style, {
-      position: "absolute",
-      top: `${rect.bottom + window.scrollY - 2}px`,
-      left: `${rect.left + window.scrollX}px`,
-      width: `${Math.max(rect.width, 4)}px`,
-      height: "2px",
-    });
-
-    underline.addEventListener("mouseenter", () => this.showTooltip(match, rect));
-    underline.addEventListener("mouseleave", () => {
-      window.setTimeout(() => {
-        if (!this.tooltip?.matches(":hover")) {
-          this.hideTooltip();
-        }
-      }, 120);
-    });
-
-    underline.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+    hit.addEventListener("mouseenter", () => {
+      this.cancelHide();
       this.showTooltip(match, rect);
     });
 
-    return underline;
+    hit.addEventListener("mouseleave", () => this.scheduleHide());
+
+    hit.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cancelHide();
+      this.showTooltip(match, rect);
+    });
+
+    return hit;
   }
 
   private showTooltip(match: GrammarMatch, rect: DOMRect): void {
@@ -155,10 +187,12 @@ export class OverlayManager {
     message.textContent = match.message;
     this.tooltip.appendChild(message);
 
-    const rule = document.createElement("p");
-    rule.className = "lc-tooltip-rule";
-    rule.textContent = match.rule.description || match.rule.id;
-    this.tooltip.appendChild(rule);
+    if (match.rule.description || match.rule.id) {
+      const rule = document.createElement("p");
+      rule.className = "lc-tooltip-rule";
+      rule.textContent = match.rule.description || match.rule.id;
+      this.tooltip.appendChild(rule);
+    }
 
     const actions = document.createElement("div");
     actions.className = "lc-tooltip-actions";
@@ -168,7 +202,9 @@ export class OverlayManager {
       applyButton.type = "button";
       applyButton.className = "lc-tooltip-apply";
       applyButton.textContent = `Aplicar: ${replacement}`;
-      applyButton.addEventListener("click", () => {
+      applyButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         this.onApply?.(match, replacement);
         this.hideTooltip();
       });
@@ -180,7 +216,9 @@ export class OverlayManager {
       dictionaryButton.type = "button";
       dictionaryButton.className = "lc-tooltip-dictionary";
       dictionaryButton.textContent = "Añadir al diccionario";
-      dictionaryButton.addEventListener("click", () => {
+      dictionaryButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
         this.onAddToDictionary?.(match, word);
         this.hideTooltip();
       });
@@ -191,7 +229,9 @@ export class OverlayManager {
     ignoreButton.type = "button";
     ignoreButton.className = "lc-tooltip-ignore";
     ignoreButton.textContent = "Ignorar";
-    ignoreButton.addEventListener("click", () => {
+    ignoreButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       this.onIgnoreOccurrence?.(match);
       this.hideTooltip();
     });
@@ -201,7 +241,9 @@ export class OverlayManager {
     ignoreRuleButton.type = "button";
     ignoreRuleButton.className = "lc-tooltip-ignore-rule";
     ignoreRuleButton.textContent = "Ignorar regla";
-    ignoreRuleButton.addEventListener("click", () => {
+    ignoreRuleButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       this.onIgnoreRule?.(match);
       this.hideTooltip();
     });
@@ -209,11 +251,28 @@ export class OverlayManager {
 
     this.tooltip.appendChild(actions);
     this.tooltip.hidden = false;
-    this.tooltip.style.top = `${rect.bottom + window.scrollY + 8}px`;
+    this.tooltip.style.top = `${rect.bottom + window.scrollY + 6}px`;
     this.tooltip.style.left = `${rect.left + window.scrollX}px`;
   }
 
+  private scheduleHide(): void {
+    this.cancelHide();
+    this.hideTimer = window.setTimeout(() => {
+      if (!this.tooltip?.matches(":hover")) {
+        this.hideTooltip();
+      }
+    }, 180);
+  }
+
+  private cancelHide(): void {
+    if (this.hideTimer !== null) {
+      window.clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+    }
+  }
+
   private hideTooltip(): void {
+    this.cancelHide();
     if (!this.tooltip) return;
     this.tooltip.hidden = true;
     this.tooltip.replaceChildren();
