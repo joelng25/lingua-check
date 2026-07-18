@@ -2,8 +2,8 @@ import { createGoogleDocsAdapter, findGoogleDocsEditor, isGoogleDocsEditor } fro
 import { matchesHost, resolveFieldFromSelectors, type SiteAdapter } from "./types";
 
 const HOSTS = ["docs.google.com"];
-
-const FIELD_SELECTORS = [".kix-appview-editor"];
+const EDITOR_SELECTOR = ".kix-appview-editor";
+const FIELD_SELECTORS = [EDITOR_SELECTOR];
 const EXCLUDE_SELECTORS = ["[data-lingua-check-ignore]"];
 
 export const googleDocsSiteAdapter: SiteAdapter = {
@@ -29,8 +29,6 @@ export const googleDocsSiteAdapter: SiteAdapter = {
     return null;
   },
 };
-
-const EDITOR_SELECTOR = ".kix-appview-editor";
 
 export function getGoogleDocsFields(root: ParentNode = document): HTMLElement[] {
   const editor = findGoogleDocsEditor(root);

@@ -1,4 +1,5 @@
 import type { GrammarMatch } from "../shared/types";
+import { getCategoryInfo } from "../shared/categories";
 import type { FieldAdapter } from "./field-adapter";
 
 const HIT_CLASS = "lc-hit";
@@ -16,6 +17,9 @@ export class OverlayManager {
   private activeField: FieldAdapter | null = null;
   private matches: GrammarMatch[] = [];
   private hideTimer: number | null = null;
+  private activeMatch: GrammarMatch | null = null;
+  private suggestions: string[] = [];
+  private suggestionIndex = 0;
   private onApply: ApplyHandler | null = null;
   private onAddToDictionary: DictionaryHandler | null = null;
   private onIgnoreOccurrence: IgnoreOccurrenceHandler | null = null;
@@ -64,6 +68,30 @@ export class OverlayManager {
 
   getMatches(): GrammarMatch[] {
     return this.matches;
+  }
+
+  isTooltipOpen(): boolean {
+    return Boolean(this.tooltip && !this.tooltip.hidden);
+  }
+
+  closeTooltip(): void {
+    this.hideTooltip();
+  }
+
+  cycleSuggestion(delta: number): void {
+    if (!this.isTooltipOpen() || this.suggestions.length === 0) return;
+    this.suggestionIndex =
+      (this.suggestionIndex + delta + this.suggestions.length) % this.suggestions.length;
+    this.updateSuggestionHighlight();
+  }
+
+  applySelectedSuggestion(): boolean {
+    if (!this.isTooltipOpen() || !this.activeMatch) return false;
+    const suggestion = this.suggestions[this.suggestionIndex];
+    if (!suggestion) return false;
+    this.onApply?.(this.activeMatch, suggestion);
+    this.hideTooltip();
+    return true;
   }
 
   highlightMatch(offset: number, length: number): void {
@@ -156,6 +184,9 @@ export class OverlayManager {
 
     const underline = document.createElement("span");
     underline.className = UNDERLINE_CLASS;
+    const category = getCategoryInfo(match.rule.category?.id, match.rule.category?.name);
+    underline.style.setProperty("--lc-underline-color", category.color);
+    underline.dataset.tone = category.tone;
     hit.appendChild(underline);
 
     hit.addEventListener("mouseenter", () => {
@@ -178,9 +209,24 @@ export class OverlayManager {
   private showTooltip(match: GrammarMatch, rect: DOMRect): void {
     if (!this.tooltip || !this.activeField) return;
 
-    const replacement = match.replacements[0]?.value;
+    this.activeMatch = match;
+    this.suggestions = Array.from(
+      new Set(
+        match.replacements
+          .map((item) => item.value)
+          .filter((value) => Boolean(value?.trim())),
+      ),
+    ).slice(0, 3);
+    this.suggestionIndex = 0;
+
     const word = this.activeField.getMatchText(match);
     this.tooltip.replaceChildren();
+
+    const category = getCategoryInfo(match.rule.category?.id, match.rule.category?.name);
+    const categoryBadge = document.createElement("div");
+    categoryBadge.className = "lc-tooltip-category";
+    categoryBadge.innerHTML = `<span class="lc-tooltip-dot" style="background:${category.color}"></span><span>${category.label}</span>`;
+    this.tooltip.appendChild(categoryBadge);
 
     const message = document.createElement("p");
     message.className = "lc-tooltip-message";
@@ -194,22 +240,38 @@ export class OverlayManager {
       this.tooltip.appendChild(rule);
     }
 
+    if (this.suggestions.length > 0) {
+      const suggestionsRow = document.createElement("div");
+      suggestionsRow.className = "lc-tooltip-suggestions";
+
+      for (const [index, suggestion] of this.suggestions.entries()) {
+        const applyButton = document.createElement("button");
+        applyButton.type = "button";
+        applyButton.dataset.suggestionIndex = String(index);
+        applyButton.className =
+          index === this.suggestionIndex ? "lc-tooltip-apply" : "lc-tooltip-suggestion";
+        applyButton.textContent = suggestion;
+        applyButton.title = `Aplicar: ${suggestion}`;
+        applyButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.suggestionIndex = index;
+          this.onApply?.(match, suggestion);
+          this.hideTooltip();
+        });
+        suggestionsRow.appendChild(applyButton);
+      }
+
+      this.tooltip.appendChild(suggestionsRow);
+
+      const hint = document.createElement("p");
+      hint.className = "lc-tooltip-hint";
+      hint.textContent = "← → elegir · Enter aplicar · Esc cerrar";
+      this.tooltip.appendChild(hint);
+    }
+
     const actions = document.createElement("div");
     actions.className = "lc-tooltip-actions";
-
-    if (replacement) {
-      const applyButton = document.createElement("button");
-      applyButton.type = "button";
-      applyButton.className = "lc-tooltip-apply";
-      applyButton.textContent = `Aplicar: ${replacement}`;
-      applyButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.onApply?.(match, replacement);
-        this.hideTooltip();
-      });
-      actions.appendChild(applyButton);
-    }
 
     if (word.trim()) {
       const dictionaryButton = document.createElement("button");
@@ -255,6 +317,18 @@ export class OverlayManager {
     this.tooltip.style.left = `${rect.left + window.scrollX}px`;
   }
 
+  private updateSuggestionHighlight(): void {
+    if (!this.tooltip) return;
+    const buttons = this.tooltip.querySelectorAll<HTMLButtonElement>(
+      ".lc-tooltip-suggestions button",
+    );
+    for (const button of buttons) {
+      const index = Number(button.dataset.suggestionIndex ?? -1);
+      button.className =
+        index === this.suggestionIndex ? "lc-tooltip-apply" : "lc-tooltip-suggestion";
+    }
+  }
+
   private scheduleHide(): void {
     this.cancelHide();
     this.hideTimer = window.setTimeout(() => {
@@ -273,6 +347,9 @@ export class OverlayManager {
 
   private hideTooltip(): void {
     this.cancelHide();
+    this.activeMatch = null;
+    this.suggestions = [];
+    this.suggestionIndex = 0;
     if (!this.tooltip) return;
     this.tooltip.hidden = true;
     this.tooltip.replaceChildren();

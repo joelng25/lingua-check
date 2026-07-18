@@ -1,79 +1,65 @@
-import { createWriteStream } from "node:fs";
-import { deflateSync } from "node:zlib";
-import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const iconsDir = path.join(__dirname, "../src/icons");
+const root = path.join(__dirname, "..");
+const iconsDir = path.join(root, "src/icons");
+const sourcePng = path.join(root, "assets/icon-source.png");
 
-function crc32(buffer) {
-  let crc = 0xffffffff;
-  for (let i = 0; i < buffer.length; i += 1) {
-    crc ^= buffer[i];
-    for (let j = 0; j < 8; j += 1) {
-      crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function chunk(type, data) {
-  const typeBuf = Buffer.from(type);
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length, 0);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-  return Buffer.concat([len, typeBuf, data, crc]);
-}
-
-function createPng(size, color) {
-  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8;
-  ihdr[9] = 6;
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
-
-  const rowSize = size * 4 + 1;
-  const raw = Buffer.alloc(rowSize * size);
-  for (let y = 0; y < size; y += 1) {
-    const rowStart = y * rowSize;
-    raw[rowStart] = 0;
-    for (let x = 0; x < size; x += 1) {
-      const i = rowStart + 1 + x * 4;
-      const edge = x === 0 || y === 0 || x === size - 1 || y === size - 1;
-      raw[i] = edge ? 255 : color[0];
-      raw[i + 1] = edge ? 255 : color[1];
-      raw[i + 2] = edge ? 255 : color[2];
-      raw[i + 3] = 255;
-    }
-  }
-
-  const compressed = deflateSync(raw);
-  return Buffer.concat([
-    signature,
-    chunk("IHDR", ihdr),
-    chunk("IDAT", compressed),
-    chunk("IEND", Buffer.alloc(0)),
-  ]);
-}
+const sizes = [16, 48, 128];
 
 await mkdir(iconsDir, { recursive: true });
 
-const sizes = [16, 48, 128];
-for (const size of sizes) {
-  const file = path.join(iconsDir, `icon${size}.png`);
-  const png = createPng(size, [37, 99, 235]);
-  await new Promise((resolve, reject) => {
-    const stream = createWriteStream(file);
-    stream.on("finish", () => resolve());
-    stream.on("error", reject);
-    stream.end(png);
-  });
+if (!existsSync(sourcePng)) {
+  console.error(`Missing ${sourcePng}. Place the brand icon there.`);
+  process.exit(1);
 }
 
-console.log("Icons generated in src/icons");
+/**
+ * Resize with PowerShell + System.Drawing (available on Windows).
+ * Falls back to copying the full-res source for 128 if resize fails.
+ */
+function resizeWithPowerShell(size, outPath) {
+  const script = `
+Add-Type -AssemblyName System.Drawing
+$img = [System.Drawing.Image]::FromFile(${JSON.stringify(sourcePng)})
+$bmp = New-Object System.Drawing.Bitmap ${size}, ${size}
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+$g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+$g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+$g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+$g.Clear([System.Drawing.Color]::Transparent)
+$g.DrawImage($img, 0, 0, ${size}, ${size})
+$bmp.Save(${JSON.stringify(outPath)}, [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $bmp.Dispose(); $img.Dispose()
+`;
+  const result = spawnSync("powershell", ["-NoProfile", "-Command", script], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || "PowerShell resize failed");
+  }
+}
+
+for (const size of sizes) {
+  const outPath = path.join(iconsDir, `icon${size}.png`);
+  try {
+    resizeWithPowerShell(size, outPath);
+  } catch (error) {
+    if (size === 128) {
+      await copyFile(sourcePng, outPath);
+    } else {
+      throw error;
+    }
+  }
+}
+
+// Also keep a copy referenced for store screenshots / docs if needed
+const brandCopy = path.join(iconsDir, "icon-brand.png");
+await copyFile(sourcePng, brandCopy);
+
+console.log("Icons generated from assets/icon-source.png");

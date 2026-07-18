@@ -1,19 +1,23 @@
+import { getCategoryInfo } from "../shared/categories";
 import type { GrammarMatch, PanelMatchItem, PanelState } from "./types";
 
 export const PANEL_STATE_KEY = "panelStateByTab";
 
 export function toPanelMatchItems(text: string, matches: GrammarMatch[]): PanelMatchItem[] {
-  return matches.map((match) => ({
-    offset: match.offset,
-    length: match.length,
-    message: match.message,
-    snippet: text.slice(match.offset, match.offset + match.length),
-    suggestion: match.replacements[0]?.value ?? "",
-    ruleId: match.rule.id,
-    ruleDescription: match.rule.description,
-    categoryId: match.rule.category?.id ?? "UNKNOWN",
-    categoryName: match.rule.category?.name ?? "Otros",
-  }));
+  return matches.map((match) => {
+    const category = getCategoryInfo(match.rule.category?.id, match.rule.category?.name);
+    return {
+      offset: match.offset,
+      length: match.length,
+      message: match.message,
+      snippet: text.slice(match.offset, match.offset + match.length),
+      suggestion: match.replacements[0]?.value ?? "",
+      ruleId: match.rule.id,
+      ruleDescription: match.rule.description || match.shortMessage || "",
+      categoryId: category.id,
+      categoryName: category.label,
+    };
+  });
 }
 
 export function createPanelState(

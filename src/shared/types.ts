@@ -66,6 +66,9 @@ export interface Settings {
   personalDictionary: string[];
   ignoredRules: string[];
   apiUrl: string;
+  theme: "system" | "light" | "dark";
+  /** LanguageTool detection level — picky finds more style/punctuation issues. */
+  checkLevel: "default" | "picky";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -76,4 +79,6 @@ export const DEFAULT_SETTINGS: Settings = {
   personalDictionary: [],
   ignoredRules: [],
   apiUrl: "",
+  theme: "system",
+  checkLevel: "picky",
 };

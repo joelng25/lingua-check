@@ -1,4 +1,10 @@
 import type { GrammarMatch } from "../shared/types";
+import {
+  getContentEditableCheckScope,
+  getInputCheckScope,
+  getPlainText,
+  type CheckScope,
+} from "./paragraph-scope";
 
 export type FieldKind = "input" | "contenteditable" | "googledocs";
 
@@ -6,6 +12,7 @@ export interface FieldAdapter {
   element: HTMLElement;
   kind: FieldKind;
   getText(): string;
+  getCheckScope(): CheckScope;
   applyReplacement(offset: number, length: number, replacement: string): void;
   getMatchRects(match: GrammarMatch): DOMRect[];
   getMatchText(match: GrammarMatch): string;
@@ -83,6 +90,7 @@ function createInputAdapter(element: HTMLInputElement | HTMLTextAreaElement): Fi
     element,
     kind: "input",
     getText: () => element.value,
+    getCheckScope: () => getInputCheckScope(element),
     applyReplacement: (offset, length, replacement) => {
       const value = element.value;
       const nextValue = value.slice(0, offset) + replacement + value.slice(offset + length);
@@ -103,7 +111,8 @@ function createContentEditableAdapter(element: HTMLElement): FieldAdapter {
   return {
     element,
     kind: "contenteditable",
-    getText: () => collectTextSegments(element).text,
+    getText: () => getPlainText(element),
+    getCheckScope: () => getContentEditableCheckScope(element),
     applyReplacement: (offset, length, replacement) => {
       applyContentEditableReplacement(element, offset, length, replacement);
     },
@@ -113,7 +122,7 @@ function createContentEditableAdapter(element: HTMLElement): FieldAdapter {
       return Array.from(range.getClientRects());
     },
     getMatchText: (match) =>
-      collectTextSegments(element).text.slice(match.offset, match.offset + match.length),
+      getPlainText(element).slice(match.offset, match.offset + match.length),
   };
 }
 
@@ -135,11 +144,11 @@ function applyContentEditableReplacement(
   let range = createDomRangeFromSegments(segments, offset, length);
 
   if (range && expected && range.toString() !== expected) {
-    range = findRangeByText(segments, expected, offset) ?? range;
+    range = findRangeByText(segments, text, expected, offset) ?? range;
   }
 
   if (!range && expected) {
-    range = findRangeByText(segments, expected, offset);
+    range = findRangeByText(segments, text, expected, offset);
   }
 
   if (!range) return;
@@ -262,12 +271,12 @@ function createDomRange(root: HTMLElement, offset: number, length: number): Rang
 
 function findRangeByText(
   segments: TextSegment[],
+  fullText: string,
   needle: string,
   preferredOffset: number,
 ): Range | null {
   if (!needle || segments.length === 0) return null;
 
-  const fullText = segments.map((segment) => segment.node.textContent ?? "").join("");
   const occurrences: number[] = [];
   let from = 0;
 
@@ -275,7 +284,7 @@ function findRangeByText(
     const index = fullText.indexOf(needle, from);
     if (index === -1) break;
     occurrences.push(index);
-    from = index + 1;
+    from = index + Math.max(1, needle.length);
   }
 
   if (occurrences.length === 0) return null;

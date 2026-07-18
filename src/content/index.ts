@@ -1,7 +1,7 @@
 import { matchOccurrenceKey } from "../shared/match-filters";
 import { toPanelMatchItems } from "../shared/panel-state";
 import { getSettings, isSiteDisabled } from "../shared/storage";
-import type { GrammarMatch } from "../shared/types";
+import type { GrammarMatch, Settings } from "../shared/types";
 import { createFieldAdapter, type FieldAdapter } from "./field-adapter";
 import { OverlayManager } from "./overlay";
 import { registerShortcuts } from "./shortcuts";
@@ -17,13 +17,16 @@ const debounceTimers = new WeakMap<FieldAdapter, number>();
 const activeFields = new Map<HTMLElement, FieldAdapter>();
 const ignoredOccurrences = new Set<string>();
 
-let settingsCache = {
+let settingsCache: Settings = {
   enabled: true,
   language: "es",
   debounceMs: 700,
-  disabledSites: [] as string[],
-  personalDictionary: [] as string[],
-  ignoredRules: [] as string[],
+  disabledSites: [],
+  personalDictionary: [],
+  ignoredRules: [],
+  apiUrl: "",
+  theme: "system",
+  checkLevel: "picky",
 };
 let enabled = true;
 let activeAdapter: FieldAdapter | null = null;
@@ -41,12 +44,21 @@ void bootstrap();
 function applyMatch(match: GrammarMatch, replacement: string): void {
   if (!activeAdapter) return;
   activeAdapter.applyReplacement(match.offset, match.length, replacement);
+  void chrome.runtime.sendMessage({
+    type: "RECORD_CORRECTION",
+    payload: { categoryId: match.rule.category?.id ?? "UNKNOWN" },
+  });
   void checkField(activeAdapter);
 }
 
 function applyRawMatch(offset: number, length: number, replacement: string): void {
   if (!activeAdapter) return;
+  const match = overlay.getMatches().find((item) => item.offset === offset && item.length === length);
   activeAdapter.applyReplacement(offset, length, replacement);
+  void chrome.runtime.sendMessage({
+    type: "RECORD_CORRECTION",
+    payload: { categoryId: match?.rule.category?.id ?? "UNKNOWN" },
+  });
   void checkField(activeAdapter);
 }
 
@@ -268,8 +280,10 @@ function syncPanel(text: string, matches: GrammarMatch[]): void {
 async function checkField(adapter: FieldAdapter): Promise<void> {
   if (!enabled) return;
 
-  const text = adapter.getText();
-  if (!text.trim()) {
+  const scope = adapter.getCheckScope();
+  const fullText = adapter.getText();
+
+  if (!scope.text.trim()) {
     overlay.clear();
     updateBadge(0);
     syncPanel("", []);
@@ -279,21 +293,24 @@ async function checkField(adapter: FieldAdapter): Promise<void> {
   try {
     const response = await chrome.runtime.sendMessage({
       type: "CHECK_TEXT",
-      payload: { text, language: settingsCache.language },
+      payload: { text: scope.text, language: settingsCache.language },
     });
 
     if (!response?.ok) return;
 
     const rawMatches = (response.matches ?? []) as GrammarMatch[];
-    const matches = rawMatches.filter(
-      (match) => !ignoredOccurrences.has(matchOccurrenceKey(match)),
-    );
+    const matches = rawMatches
+      .map((match) => ({
+        ...match,
+        offset: match.offset + scope.baseOffset,
+      }))
+      .filter((match) => !ignoredOccurrences.has(matchOccurrenceKey(match)));
 
     if (isFieldFocused(adapter)) {
       activeAdapter = adapter;
       overlay.render(adapter, matches);
       updateBadge(matches.length);
-      syncPanel(text, matches);
+      syncPanel(fullText || scope.text, matches);
     }
   } catch {
     // Extension context may be invalidated during reload.
@@ -347,11 +364,26 @@ if (getActiveSiteAdapter().id !== "generic") {
 }
 
 if (getActiveSiteAdapter().id === "google-docs") {
-  window.setInterval(() => {
+  // Docs annotates the canvas asynchronously after load; poll until text appears.
+  let docsAttempts = 0;
+  const docsPoll = window.setInterval(() => {
     if (!enabled) return;
     scanForFields();
     if (activeAdapter) {
       void checkField(activeAdapter);
+      if (activeAdapter.getText().trim() || docsAttempts > 40) {
+        window.clearInterval(docsPoll);
+      }
     }
-  }, 3000);
+    docsAttempts += 1;
+  }, 1000);
+
+  document.addEventListener(
+    "keyup",
+    () => {
+      if (!enabled || !activeAdapter) return;
+      scheduleCheck(activeAdapter);
+    },
+    true,
+  );
 }

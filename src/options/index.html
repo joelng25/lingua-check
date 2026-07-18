@@ -5,17 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinguaCheck — Opciones</title>
     <style>
+      :root,
+      [data-theme="light"] {
+        --bg: #ffffff;
+        --text: #111827;
+        --muted: #6b7280;
+        --border: #d1d5db;
+        --panel: #f9fafb;
+        --primary: #2563eb;
+        --danger: #ef4444;
+      }
+
+      [data-theme="dark"] {
+        --bg: #0f172a;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --border: #334155;
+        --panel: #1e293b;
+        --primary: #3b82f6;
+        --danger: #f87171;
+      }
+
       body {
-        max-width: 720px;
+        max-width: 760px;
         margin: 0 auto;
         padding: 32px 20px;
         font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-        color: #111827;
+        color: var(--text);
+        background: var(--bg);
       }
 
-      h1 {
-        margin-top: 0;
-      }
+      h1 { margin-top: 0; }
+      h2 { font-size: 16px; margin-bottom: 8px; }
 
       label {
         display: block;
@@ -23,22 +44,19 @@
         font-size: 14px;
       }
 
-      input,
-      textarea,
-      select,
-      button {
-        font: inherit;
-      }
+      input, textarea, select, button { font: inherit; }
 
       input[type="number"],
       input[type="url"],
       select {
         margin-top: 6px;
         padding: 8px;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border);
         border-radius: 6px;
         width: 100%;
         box-sizing: border-box;
+        background: var(--bg);
+        color: var(--text);
       }
 
       textarea {
@@ -46,19 +64,36 @@
         min-height: 140px;
         margin-top: 6px;
         padding: 10px;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border);
         border-radius: 6px;
         box-sizing: border-box;
         resize: vertical;
+        background: var(--bg);
+        color: var(--text);
       }
 
       button {
         border: 0;
         border-radius: 6px;
         padding: 10px 14px;
-        background: #2563eb;
+        background: var(--primary);
         color: white;
         cursor: pointer;
+      }
+
+      button.secondary {
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      button.danger { background: var(--danger); }
+
+      .row-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 12px 0 20px;
       }
 
       #saved {
@@ -68,53 +103,68 @@
         transition: opacity 0.2s ease;
       }
 
-      #saved.visible {
-        opacity: 1;
-      }
+      #saved.visible { opacity: 1; }
 
-      h2 {
-        font-size: 16px;
-        margin-bottom: 8px;
-      }
-
-      .hint {
-        color: #6b7280;
-        font-size: 13px;
-      }
+      .hint { color: var(--muted); font-size: 13px; }
 
       kbd {
-        background: #f3f4f6;
-        border: 1px solid #d1d5db;
+        background: var(--panel);
+        border: 1px solid var(--border);
         border-radius: 4px;
         padding: 2px 6px;
         font-size: 12px;
       }
 
-      #ignored-rules {
+      #ignored-rules, #stats-list {
         list-style: none;
         padding: 0;
         margin: 0 0 20px;
       }
 
-      #ignored-rules li {
+      #ignored-rules li, #stats-list li {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
         padding: 8px 0;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--border);
         font-size: 13px;
       }
 
       #ignored-rules button {
-        background: #ef4444;
+        background: var(--danger);
         padding: 6px 10px;
         font-size: 12px;
+      }
+
+      #api-status {
+        margin-top: 8px;
+        font-size: 13px;
+      }
+
+      #api-status.ok { color: #059669; }
+      #api-status.err { color: var(--danger); }
+
+      section {
+        margin: 24px 0;
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel);
       }
     </style>
   </head>
   <body>
     <h1>Opciones de LinguaCheck</h1>
+
+    <label>
+      Tema
+      <select id="theme">
+        <option value="system">Sistema</option>
+        <option value="light">Claro</option>
+        <option value="dark">Oscuro</option>
+      </select>
+    </label>
 
     <label>
       Idioma por defecto
@@ -129,27 +179,45 @@
     </label>
 
     <label>
+      Nivel de revisión
+      <select id="check-level">
+        <option value="picky">Exhaustivo (ortografía, gramática, puntuación y estilo)</option>
+        <option value="default">Básico (menos avisos de estilo)</option>
+      </select>
+      <span class="hint">El modo exhaustivo detecta más correcciones como puntuación, mayúsculas y estilo.</span>
+    </label>
+
+    <label>
       Retardo antes de revisar (ms)
       <input id="debounce" type="number" min="200" max="3000" step="100" />
     </label>
 
     <label>
       Servidor LanguageTool (opcional)
-      <input
-        id="api-url"
-        type="url"
-        placeholder="https://api.languagetool.org/v2/check"
-      />
-      <span class="hint">Deja vacío para usar la API pública. Ej: http://localhost:8081/v2/check</span>
+      <input id="api-url" type="url" placeholder="https://api.languagetool.org/v2/check" />
+      <span class="hint">Vacío = API pública. Ejemplo local: http://localhost:8081/v2/check</span>
+      <div class="row-actions">
+        <button id="test-api" class="secondary" type="button">Probar servidor</button>
+      </div>
+      <div id="api-status"></div>
     </label>
 
     <label>
       Diccionario personal
-      <textarea
-        id="dictionary"
-        placeholder="Una palabra por línea. Estas palabras no se marcarán como error."
-      ></textarea>
+      <textarea id="dictionary" placeholder="Una palabra por línea"></textarea>
     </label>
+    <div class="row-actions">
+      <button id="export-dict" class="secondary" type="button">Exportar diccionario</button>
+      <button id="import-dict" class="secondary" type="button">Importar diccionario</button>
+      <input id="import-file" type="file" accept=".txt,.json" hidden />
+    </div>
+
+    <section>
+      <h2>Estadísticas</h2>
+      <p class="hint" id="stats-summary">Cargando…</p>
+      <ul id="stats-list"></ul>
+      <button id="reset-stats" class="secondary" type="button">Reiniciar estadísticas</button>
+    </section>
 
     <section>
       <h2>Reglas ignoradas</h2>
@@ -157,7 +225,12 @@
       <ul id="ignored-rules"></ul>
     </section>
 
-    <p class="hint">Atajo: <kbd>Ctrl</kbd> + <kbd>.</kbd> para aplicar la primera sugerencia.</p>
+    <p class="hint">
+      Atajos: <kbd>Ctrl</kbd>+<kbd>.</kbd> aplicar ·
+      <kbd>←</kbd><kbd>→</kbd> sugerencias ·
+      <kbd>Enter</kbd> aplicar ·
+      <kbd>Esc</kbd> cerrar
+    </p>
 
     <button id="save" type="button">Guardar</button>
     <span id="saved">Guardado</span>

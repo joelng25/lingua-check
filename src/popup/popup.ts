@@ -1,6 +1,9 @@
 import { getSettings, saveSettings } from "../shared/storage";
+import { getStats } from "../shared/stats";
+import { applyTheme } from "../shared/theme";
 
 const statusEl = document.getElementById("status")!;
+const statsLine = document.getElementById("stats-line")!;
 const toggleBtn = document.getElementById("toggle") as HTMLButtonElement;
 const siteBtn = document.getElementById("site") as HTMLButtonElement;
 const panelBtn = document.getElementById("panel") as HTMLButtonElement;
@@ -9,6 +12,10 @@ const optionsLink = document.getElementById("options") as HTMLAnchorElement;
 
 async function init(): Promise<void> {
   let settings = await getSettings();
+  applyTheme(settings.theme);
+
+  const stats = await getStats();
+  statsLine.textContent = `${stats.correctionsThisWeek} correcciones esta semana · ${stats.correctionsTotal} total`;
 
   function render(): void {
     statusEl.textContent = settings.enabled ? "Activo" : "Desactivado";

@@ -5,6 +5,7 @@ import {
   setPanelStateForTab,
 } from "../shared/panel-state";
 import { addIgnoredRule, addToPersonalDictionary, getSettings } from "../shared/storage";
+import { recordCorrection } from "../shared/stats";
 import type { CheckRequest, CheckResponse, PanelState } from "../shared/types";
 
 const cache = new Map<string, CheckResponse>();
@@ -40,7 +41,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const settings = await getSettings();
         const apiUrl = settings.apiUrl || DEFAULT_API_URL;
-        const cacheKey = `${apiUrl}:${settings.language}:${request.text}`;
+        const checkLevel = settings.checkLevel || "picky";
+        const cacheKey = `${apiUrl}:${settings.language}:${checkLevel}:${request.text}`;
 
         if (cache.has(cacheKey)) {
           sendResponse(cache.get(cacheKey));
@@ -53,6 +55,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           settings.personalDictionary,
           settings.ignoredRules,
           apiUrl,
+          checkLevel,
         );
 
         const response: CheckResponse = { ok: true, matches };
@@ -135,6 +138,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ ok: true });
     })();
 
+    return true;
+  }
+
+  if (message.type === "RECORD_CORRECTION") {
+    const categoryId = String(message.payload?.categoryId ?? "UNKNOWN");
+    void recordCorrection(categoryId).then((stats) => sendResponse({ ok: true, stats }));
+    return true;
+  }
+
+  if (message.type === "TEST_API") {
+    const apiUrl = String(message.payload?.apiUrl ?? "");
+    void (async () => {
+      try {
+        const settings = await getSettings();
+        const url = apiUrl || settings.apiUrl || DEFAULT_API_URL;
+        await checkText("prueba", settings.language || "es", [], [], url);
+        sendResponse({ ok: true });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : "Error de conexión",
+        });
+      }
+    })();
     return true;
   }
 

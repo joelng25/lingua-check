@@ -5,12 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinguaCheck</title>
     <style>
+      :root,
+      [data-theme="light"] {
+        --bg: #ffffff;
+        --text: #111827;
+        --muted: #6b7280;
+        --border: #d1d5db;
+        --panel: #f3f4f6;
+        --primary: #2563eb;
+        --success: #059669;
+      }
+
+      [data-theme="dark"] {
+        --bg: #0f172a;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --border: #334155;
+        --panel: #1e293b;
+        --primary: #3b82f6;
+        --success: #34d399;
+      }
+
       body {
         width: 280px;
         margin: 0;
         padding: 16px;
         font-family: system-ui, -apple-system, Segoe UI, sans-serif;
-        color: #111827;
+        color: var(--text);
+        background: var(--bg);
       }
 
       h1 {
@@ -20,7 +42,7 @@
 
       p {
         margin: 0 0 16px;
-        color: #6b7280;
+        color: var(--muted);
         font-size: 13px;
       }
 
@@ -40,15 +62,23 @@
       select {
         margin-top: 6px;
         padding: 8px;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border);
         border-radius: 6px;
+        background: var(--bg);
+        color: var(--text);
       }
 
       .row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 16px;
+        margin-bottom: 12px;
+      }
+
+      #stats-line {
+        margin: 0 0 14px;
+        font-size: 12px;
+        color: var(--muted);
       }
 
       button,
@@ -65,12 +95,12 @@
 
       #panel {
         margin-bottom: 10px;
-        background: #059669;
+        background: var(--success);
         color: white;
       }
 
       #toggle {
-        background: #2563eb;
+        background: var(--primary);
         color: white;
       }
 
@@ -80,19 +110,21 @@
 
       #site {
         margin-bottom: 10px;
-        background: #f3f4f6;
-        color: #111827;
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
       }
 
       a {
-        background: #e5e7eb;
-        color: #111827;
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
       }
 
       .shortcut {
         margin: 0 0 12px;
         font-size: 12px;
-        color: #6b7280;
+        color: var(--muted);
       }
     </style>
   </head>
@@ -104,6 +136,8 @@
       <span>Estado</span>
       <strong id="status">Activo</strong>
     </div>
+
+    <p id="stats-line">0 correcciones esta semana</p>
 
     <label>
       Idioma
@@ -117,7 +151,7 @@
       </select>
     </label>
 
-    <p class="shortcut">Atajo: Ctrl + . para aplicar la primera sugerencia</p>
+    <p class="shortcut">Atajos: Ctrl+. · ←→ sugerencias · Enter · Esc</p>
 
     <button id="panel" type="button">Ver panel de errores</button>
     <button id="toggle" type="button">Desactivar</button>

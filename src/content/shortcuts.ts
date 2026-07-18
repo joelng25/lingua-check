@@ -1,7 +1,7 @@
 import { getFirstApplicableMatch } from "../shared/match-filters";
 import type { GrammarMatch } from "../shared/types";
-import type { OverlayManager } from "./overlay";
 import type { FieldAdapter } from "./field-adapter";
+import type { OverlayManager } from "./overlay";
 
 interface ShortcutContext {
   getActiveAdapter: () => FieldAdapter | null;
@@ -15,13 +15,45 @@ export function registerShortcuts(context: ShortcutContext): void {
   document.addEventListener(
     "keydown",
     (event) => {
+      const overlay = context.getOverlay();
+
+      if (overlay.isTooltipOpen()) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          overlay.closeTooltip();
+          return;
+        }
+
+        if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+          event.preventDefault();
+          event.stopPropagation();
+          overlay.cycleSuggestion(1);
+          return;
+        }
+
+        if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+          event.preventDefault();
+          event.stopPropagation();
+          overlay.cycleSuggestion(-1);
+          return;
+        }
+
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.stopPropagation();
+          overlay.applySelectedSuggestion();
+          return;
+        }
+      }
+
       const isShortcut = (event.ctrlKey || event.metaKey) && event.key === ".";
       if (!isShortcut) return;
 
       const adapter = context.getActiveAdapter();
       if (!adapter) return;
 
-      const match = getFirstApplicableMatch(context.getOverlay().getMatches());
+      const match = getFirstApplicableMatch(overlay.getMatches());
       if (!match) return;
 
       const replacement = match.replacements[0]?.value;

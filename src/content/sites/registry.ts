@@ -5,6 +5,9 @@ import { gmailSiteAdapter } from "./gmail";
 import { linkedinSiteAdapter } from "./linkedin";
 import { redditSiteAdapter } from "./reddit";
 import { slackSiteAdapter } from "./slack";
+import { notionSiteAdapter } from "./notion";
+import { outlookSiteAdapter } from "./outlook";
+import { teamsSiteAdapter } from "./teams";
 import { twitterSiteAdapter } from "./twitter";
 import { whatsappSiteAdapter } from "./whatsapp";
 import { queryFields, type SiteAdapter } from "./types";
@@ -18,6 +21,9 @@ const siteAdapters: SiteAdapter[] = [
   redditSiteAdapter,
   discordSiteAdapter,
   whatsappSiteAdapter,
+  notionSiteAdapter,
+  outlookSiteAdapter,
+  teamsSiteAdapter,
 ];
 
 let activeAdapter: SiteAdapter = genericSiteAdapter;
@@ -50,5 +56,5 @@ export function resolveSiteField(target: Element): HTMLElement | null {
   return getSiteAdapter().resolveField(target);
 }
 
-export { genericSiteAdapter, discordSiteAdapter, gmailSiteAdapter, googleDocsSiteAdapter, linkedinSiteAdapter, redditSiteAdapter, slackSiteAdapter, twitterSiteAdapter, whatsappSiteAdapter };
+export { genericSiteAdapter, discordSiteAdapter, gmailSiteAdapter, googleDocsSiteAdapter, linkedinSiteAdapter, notionSiteAdapter, outlookSiteAdapter, redditSiteAdapter, slackSiteAdapter, teamsSiteAdapter, twitterSiteAdapter, whatsappSiteAdapter };
 export type { SiteAdapter };

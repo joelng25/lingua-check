@@ -27,10 +27,12 @@ LinguaCheck revisa tu escritura mientras escribes en la web. Detecta errores de 
 Características:
 • Subrayados en tiempo real en campos de texto editables
 • Panel lateral con la lista completa de errores
-• Atajo Ctrl + . para aplicar la primera sugerencia
-• Diccionario personal y reglas que puedes ignorar
+• Atajos: Ctrl + ., flechas para elegir sugerencia, Enter y Esc
+• Diccionario personal (exportar/importar) y reglas ignoradas
+• Tema claro/oscuro y estadísticas locales de correcciones
 • Varios idiomas: español, inglés, francés, alemán y portugués
 • Activar o desactivar la extensión por sitio
+• Servidor LanguageTool personalizado opcional
 
 Cómo funciona:
 1. Escribe en cualquier campo de texto de una página web

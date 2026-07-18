@@ -1,5 +1,5 @@
 import { DEFAULT_API_URL, resolveApiUrl } from "./constants";
-import type { CheckResult, GrammarMatch } from "./types";
+import type { CheckResult, GrammarMatch, Settings } from "./types";
 
 export async function checkText(
   text: string,
@@ -7,6 +7,7 @@ export async function checkText(
   personalDictionary: string[] = [],
   ignoredRules: string[] = [],
   apiUrl: string = DEFAULT_API_URL,
+  checkLevel: Settings["checkLevel"] = "picky",
 ): Promise<GrammarMatch[]> {
   if (!text.trim()) {
     return [];
@@ -16,6 +17,7 @@ export async function checkText(
     text,
     language,
     enabledOnly: "false",
+    level: checkLevel === "picky" ? "picky" : "default",
   });
 
   const response = await fetch(resolveApiUrl(apiUrl), {
