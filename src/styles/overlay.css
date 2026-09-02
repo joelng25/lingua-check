@@ -26,30 +26,15 @@
   bottom: 1px;
   height: 2px;
   --lc-underline-color: #e53935;
-  background: linear-gradient(
-    90deg,
-    var(--lc-underline-color) 0%,
-    var(--lc-underline-color) 40%,
-    transparent 40%,
-    transparent 50%,
-    var(--lc-underline-color) 50%,
-    var(--lc-underline-color) 90%,
-    transparent 90%
-  );
-  background-size: 8px 2px;
+  background: var(--lc-underline-color);
   border-radius: 1px;
   pointer-events: none;
 }
 
-.lc-underline[data-tone="warning"] {
-  background-size: 10px 2px;
-}
-
-.lc-underline[data-tone="style"] {
-  height: 2px;
+.lc-underline[data-tone="warning"],
+.lc-underline[data-tone="style"],
+.lc-underline[data-tone="info"] {
   background: var(--lc-underline-color);
-  background-size: auto;
-  opacity: 0.9;
 }
 
 .lc-underline-active {

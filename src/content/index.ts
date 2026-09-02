@@ -2,9 +2,10 @@ import { matchOccurrenceKey } from "../shared/match-filters";
 import { toPanelMatchItems } from "../shared/panel-state";
 import { getSettings, isSiteDisabled } from "../shared/storage";
 import type { GrammarMatch, Settings } from "../shared/types";
-import { createFieldAdapter, type FieldAdapter } from "./field-adapter";
+import { createFieldAdapter, getFieldSelection, type FieldAdapter } from "./field-adapter";
 import { OverlayManager } from "./overlay";
 import { registerShortcuts } from "./shortcuts";
+import { setNativeSpellcheckSuppressed, suppressElementSpellcheck } from "./suppress-native-spellcheck";
 import {
   getActiveSiteAdapter,
   getSiteAdapter,
@@ -16,10 +17,11 @@ const overlay = new OverlayManager();
 const debounceTimers = new WeakMap<FieldAdapter, number>();
 const activeFields = new Map<HTMLElement, FieldAdapter>();
 const ignoredOccurrences = new Set<string>();
+const fieldLanguages = new WeakMap<FieldAdapter, string>();
 
 let settingsCache: Settings = {
   enabled: true,
-  language: "es",
+  language: "auto",
   debounceMs: 700,
   disabledSites: [],
   personalDictionary: [],
@@ -36,6 +38,7 @@ async function bootstrap(): Promise<void> {
   settingsCache = await getSettings();
   siteAdapter = getSiteAdapter();
   enabled = settingsCache.enabled && !isSiteDisabled(location.hostname, settingsCache.disabledSites);
+  setNativeSpellcheckSuppressed(enabled);
   scanForFields();
 }
 
@@ -123,9 +126,53 @@ registerShortcuts({
   highlightMatch: (offset, length) => overlay.highlightMatch(offset, length),
 });
 
+let selectionTimer: number | null = null;
+
+function handleTextSelection(): void {
+  if (!enabled || !activeAdapter) return;
+  if (overlay.getMatches().length === 0) return;
+
+  const selection = getFieldSelection(activeAdapter);
+  if (!selection) {
+    if (!overlay.isTooltipOpen()) return;
+    overlay.closeTooltip();
+    return;
+  }
+
+  overlay.showTooltipForSelection(selection.offset, selection.length, selection.rect);
+}
+
+document.addEventListener("selectionchange", () => {
+  if (!enabled || !activeAdapter) return;
+  if (selectionTimer !== null) window.clearTimeout(selectionTimer);
+  selectionTimer = window.setTimeout(() => {
+    selectionTimer = null;
+    handleTextSelection();
+  }, 60);
+});
+
+document.addEventListener(
+  "mouseup",
+  () => {
+    if (!enabled || !activeAdapter) return;
+    window.setTimeout(handleTextSelection, 0);
+  },
+  true,
+);
+
+document.addEventListener(
+  "dblclick",
+  () => {
+    if (!enabled || !activeAdapter) return;
+    window.setTimeout(handleTextSelection, 0);
+  },
+  true,
+);
+
 chrome.storage.onChanged.addListener(async () => {
   settingsCache = await getSettings();
   enabled = settingsCache.enabled && !isSiteDisabled(location.hostname, settingsCache.disabledSites);
+  setNativeSpellcheckSuppressed(enabled);
 
   if (!enabled) {
     overlay.clear();
@@ -171,6 +218,8 @@ function attachField(element: HTMLElement): FieldAdapter | null {
   const adapter = getAdapterForElement(element);
   if (!adapter) return null;
 
+  suppressElementSpellcheck(element);
+
   const handlersKey = "__lcHandlers";
   if ((element as HTMLElement & { __lcHandlers?: object })[handlersKey]) {
     return adapter;
@@ -205,7 +254,14 @@ function attachField(element: HTMLElement): FieldAdapter | null {
   if (adapter.kind === "googledocs") {
     activeAdapter = adapter;
 
-    const docsObserver = new MutationObserver(() => scheduleCheck(adapter));
+    let docsMutationTimer: number | null = null;
+    const docsObserver = new MutationObserver(() => {
+      if (docsMutationTimer !== null) window.clearTimeout(docsMutationTimer);
+      docsMutationTimer = window.setTimeout(() => {
+        docsMutationTimer = null;
+        scheduleCheck(adapter);
+      }, settingsCache.debounceMs);
+    });
     docsObserver.observe(element, {
       childList: true,
       subtree: true,
@@ -293,7 +349,11 @@ async function checkField(adapter: FieldAdapter): Promise<void> {
   try {
     const response = await chrome.runtime.sendMessage({
       type: "CHECK_TEXT",
-      payload: { text: scope.text, language: settingsCache.language },
+      payload: {
+        text: scope.text,
+        contextText: (fullText || scope.text).slice(0, 2500),
+        stickyLanguage: fieldLanguages.get(adapter) ?? null,
+      },
     });
 
     if (!response?.ok) return;
@@ -305,6 +365,10 @@ async function checkField(adapter: FieldAdapter): Promise<void> {
         offset: match.offset + scope.baseOffset,
       }))
       .filter((match) => !ignoredOccurrences.has(matchOccurrenceKey(match)));
+
+    if (response.detectedLanguage?.code) {
+      fieldLanguages.set(adapter, response.detectedLanguage.code);
+    }
 
     if (isFieldFocused(adapter)) {
       activeAdapter = adapter;
@@ -334,21 +398,41 @@ document.addEventListener(
 
     const editable = resolveSiteField(target);
     if (editable) {
+      suppressElementSpellcheck(editable);
       const adapter = attachField(editable);
       if (adapter) {
         activeAdapter = adapter;
         scheduleCheck(adapter);
       }
+      return;
+    }
+
+    if (target instanceof HTMLElement && target.isContentEditable) {
+      suppressElementSpellcheck(target);
     }
   },
   true,
 );
 
+let scanTimer: number | null = null;
+
+function scheduleScanForFields(root: ParentNode = document): void {
+  if (!enabled) return;
+  if (scanTimer !== null) window.clearTimeout(scanTimer);
+  scanTimer = window.setTimeout(() => {
+    scanTimer = null;
+    scanForFields(root);
+  }, 300);
+}
+
 const observer = new MutationObserver((mutations) => {
+  if (!enabled) return;
+
   for (const mutation of mutations) {
     for (const node of mutation.addedNodes) {
       if (node instanceof HTMLElement) {
-        scanForFields(node);
+        scheduleScanForFields(node);
+        return;
       }
     }
   }
@@ -356,27 +440,28 @@ const observer = new MutationObserver((mutations) => {
 
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
-if (getActiveSiteAdapter().id !== "generic") {
-  window.setInterval(() => {
-    if (!enabled) return;
-    scanForFields();
-  }, 2000);
-}
-
 if (getActiveSiteAdapter().id === "google-docs") {
-  // Docs annotates the canvas asynchronously after load; poll until text appears.
+  // Docs annotates the canvas asynchronously after load; poll briefly, then stop.
   let docsAttempts = 0;
   const docsPoll = window.setInterval(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      window.clearInterval(docsPoll);
+      return;
+    }
+
     scanForFields();
     if (activeAdapter) {
       void checkField(activeAdapter);
-      if (activeAdapter.getText().trim() || docsAttempts > 40) {
+      if (activeAdapter.getText().trim() || docsAttempts >= 15) {
         window.clearInterval(docsPoll);
       }
     }
+
     docsAttempts += 1;
-  }, 1000);
+    if (docsAttempts >= 15) {
+      window.clearInterval(docsPoll);
+    }
+  }, 2000);
 
   document.addEventListener(
     "keyup",

@@ -302,6 +302,57 @@ function findRangeByText(
   return createDomRangeFromSegments(segments, best, needle.length);
 }
 
+export interface FieldSelection {
+  offset: number;
+  length: number;
+  rect: DOMRect;
+}
+
+export function getFieldSelection(adapter: FieldAdapter): FieldSelection | null {
+  const { element, kind } = adapter;
+
+  if (kind === "input" && (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
+    const start = element.selectionStart;
+    const end = element.selectionEnd;
+    if (start === null || end === null || start === end) return null;
+
+    const rects = getInputMatchRects(element, {
+      offset: start,
+      length: end - start,
+    } as GrammarMatch);
+    const rect = rects[0];
+    if (!rect) return null;
+
+    return { offset: start, length: end - start, rect };
+  }
+
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
+
+  const anchor = selection.anchorNode;
+  if (!anchor || !element.contains(anchor)) return null;
+
+  try {
+    const range = selection.getRangeAt(0);
+    const text = range.toString();
+    if (!text.trim()) return null;
+
+    const preRange = range.cloneRange();
+    preRange.selectNodeContents(element);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const offset = preRange.toString().length;
+    const length = text.length;
+
+    const rects = Array.from(range.getClientRects());
+    const rect = rects[0] ?? range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return null;
+
+    return { offset, length, rect };
+  } catch {
+    return null;
+  }
+}
+
 function getInputMatchRects(
   element: HTMLInputElement | HTMLTextAreaElement,
   match: GrammarMatch,

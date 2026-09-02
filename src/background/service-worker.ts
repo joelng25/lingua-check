@@ -1,6 +1,11 @@
 import { checkText } from "../shared/checker";
 import { DEFAULT_API_URL } from "../shared/constants";
 import {
+  detectLanguageWithChrome,
+  isAutoLanguage,
+  resolveAutoLanguage,
+} from "../shared/language";
+import {
   clearPanelStateForTab,
   setPanelStateForTab,
 } from "../shared/panel-state";
@@ -11,6 +16,15 @@ import type { CheckRequest, CheckResponse, PanelState } from "../shared/types";
 const cache = new Map<string, CheckResponse>();
 const tabCounts = new Map<number, number>();
 const BADGE_COLOR = "#e53935";
+
+function hashText(text: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${text.length}:${hash >>> 0}`;
+}
 
 function setTabBadge(tabId: number, count: number): void {
   tabCounts.set(tabId, count);
@@ -42,26 +56,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const settings = await getSettings();
         const apiUrl = settings.apiUrl || DEFAULT_API_URL;
         const checkLevel = settings.checkLevel || "picky";
-        const cacheKey = `${apiUrl}:${settings.language}:${checkLevel}:${request.text}`;
+
+        let autoResolution;
+        if (isAutoLanguage(settings.language)) {
+          const detectionSample = (request.contextText || request.text).trim();
+          const hint = await detectLanguageWithChrome(detectionSample);
+          autoResolution = resolveAutoLanguage(
+            hint,
+            request.stickyLanguage ?? null,
+          );
+        }
+
+        const resolvedLanguage = autoResolution?.language ?? settings.language;
+        const cacheKey = `${apiUrl}:${resolvedLanguage}:${checkLevel}:${hashText(request.text)}`;
 
         if (cache.has(cacheKey)) {
           sendResponse(cache.get(cacheKey));
           return;
         }
 
-        const matches = await checkText(
+        const result = await checkText(
           request.text,
           settings.language,
           settings.personalDictionary,
           settings.ignoredRules,
           apiUrl,
           checkLevel,
+          { autoResolution },
         );
 
-        const response: CheckResponse = { ok: true, matches };
+        const response: CheckResponse = {
+          ok: true,
+          matches: result.matches,
+          detectedLanguage: result.detectedLanguage,
+        };
         cache.set(cacheKey, response);
 
-        if (cache.size > 100) {
+        if (cache.size > 40) {
           const firstKey = cache.keys().next().value;
           if (firstKey) cache.delete(firstKey);
         }
@@ -153,7 +184,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         const settings = await getSettings();
         const url = apiUrl || settings.apiUrl || DEFAULT_API_URL;
-        await checkText("prueba", settings.language || "es", [], [], url);
+        await checkText("This is a test.", settings.language || "auto", [], [], url);
         sendResponse({ ok: true });
       } catch (error) {
         sendResponse({

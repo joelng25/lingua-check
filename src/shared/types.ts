@@ -24,16 +24,33 @@ export interface GrammarMatch {
 
 export interface CheckResult {
   matches: GrammarMatch[];
+  language?: {
+    code?: string;
+    name?: string;
+    detectedLanguage?: {
+      code?: string;
+      name?: string;
+      confidence?: number;
+    };
+  };
 }
 
 export interface CheckRequest {
   text: string;
-  language: string;
+  /** Wider sample for language detection (full field text). */
+  contextText?: string;
+  /** Last reliable language detected in this field. */
+  stickyLanguage?: string | null;
 }
 
 export interface CheckResponse {
   ok: boolean;
   matches?: GrammarMatch[];
+  detectedLanguage?: {
+    code: string;
+    name: string;
+    confidence?: number;
+  };
   error?: string;
 }
 
@@ -58,8 +75,11 @@ export interface PanelState {
   updatedAt: number;
 }
 
+import { AUTO_LANGUAGE } from "./language";
+
 export interface Settings {
   enabled: boolean;
+  /** `auto` = detect language from text; or a fixed LanguageTool code. */
   language: string;
   debounceMs: number;
   disabledSites: string[];
@@ -73,7 +93,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
-  language: "es",
+  language: AUTO_LANGUAGE,
   debounceMs: 700,
   disabledSites: [],
   personalDictionary: [],

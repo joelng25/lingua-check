@@ -1,6 +1,7 @@
 import type { GrammarMatch } from "../shared/types";
 import { getCategoryInfo } from "../shared/categories";
 import type { FieldAdapter } from "./field-adapter";
+import { mergeUnderlineRects } from "./merge-rects";
 
 const HIT_CLASS = "lc-hit";
 const UNDERLINE_CLASS = "lc-underline";
@@ -17,6 +18,7 @@ export class OverlayManager {
   private activeField: FieldAdapter | null = null;
   private matches: GrammarMatch[] = [];
   private hideTimer: number | null = null;
+  private repositionFrame: number | null = null;
   private activeMatch: GrammarMatch | null = null;
   private suggestions: string[] = [];
   private suggestionIndex = 0;
@@ -128,6 +130,18 @@ export class OverlayManager {
     }, 1800);
   }
 
+  showTooltipForSelection(offset: number, length: number, rect: DOMRect): boolean {
+    const match = this.findMatchForRange(offset, length);
+    if (!match) return false;
+    this.cancelHide();
+    this.showTooltip(match, rect);
+    return true;
+  }
+
+  hasSelectionOverlap(offset: number, length: number): boolean {
+    return this.findMatchForRange(offset, length) !== null;
+  }
+
   render(field: FieldAdapter, matches: GrammarMatch[]): void {
     this.mount();
     this.activeField = field;
@@ -145,7 +159,8 @@ export class OverlayManager {
     const useFixed = field.kind === "googledocs";
 
     for (const match of matches) {
-      for (const rect of field.getMatchRects(match)) {
+      const rects = mergeUnderlineRects(field.getMatchRects(match));
+      for (const rect of rects) {
         this.container.appendChild(this.createHitArea(match, rect, useFixed));
       }
     }
@@ -332,10 +347,50 @@ export class OverlayManager {
   private scheduleHide(): void {
     this.cancelHide();
     this.hideTimer = window.setTimeout(() => {
-      if (!this.tooltip?.matches(":hover")) {
-        this.hideTooltip();
-      }
+      if (this.tooltip?.matches(":hover")) return;
+      if (this.hasTextSelection()) return;
+      this.hideTooltip();
     }, 180);
+  }
+
+  private hasTextSelection(): boolean {
+    if (this.activeField?.kind === "input") {
+      const element = this.activeField.element;
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+        const start = element.selectionStart;
+        const end = element.selectionEnd;
+        if (start !== null && end !== null && start !== end) return true;
+      }
+    }
+
+    const selection = window.getSelection();
+    return Boolean(selection && !selection.isCollapsed && selection.toString().trim());
+  }
+
+  private findMatchForRange(offset: number, length: number): GrammarMatch | null {
+    if (this.matches.length === 0 || length === 0) return null;
+
+    const selectionEnd = offset + length;
+
+    const exact = this.matches.find(
+      (match) => match.offset === offset && match.length === length,
+    );
+    if (exact) return exact;
+
+    const overlapping = this.matches.filter((match) => {
+      const matchEnd = match.offset + match.length;
+      return match.offset < selectionEnd && matchEnd > offset;
+    });
+
+    if (overlapping.length === 0) return null;
+
+    return overlapping.sort((a, b) => {
+      const overlapA =
+        Math.min(a.offset + a.length, selectionEnd) - Math.max(a.offset, offset);
+      const overlapB =
+        Math.min(b.offset + b.length, selectionEnd) - Math.max(b.offset, offset);
+      return overlapB - overlapA;
+    })[0];
   }
 
   private cancelHide(): void {
@@ -356,7 +411,11 @@ export class OverlayManager {
   }
 
   private reposition(): void {
-    if (!this.activeField || this.matches.length === 0) return;
-    this.render(this.activeField, this.matches);
+    if (this.repositionFrame !== null) return;
+    this.repositionFrame = window.requestAnimationFrame(() => {
+      this.repositionFrame = null;
+      if (!this.activeField || this.matches.length === 0) return;
+      this.render(this.activeField, this.matches);
+    });
   }
 }

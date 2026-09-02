@@ -4,10 +4,10 @@ import { applyTheme } from "../shared/theme";
 
 const statusEl = document.getElementById("status")!;
 const statsLine = document.getElementById("stats-line")!;
+const languageSelect = document.getElementById("language") as HTMLSelectElement;
 const toggleBtn = document.getElementById("toggle") as HTMLButtonElement;
 const siteBtn = document.getElementById("site") as HTMLButtonElement;
 const panelBtn = document.getElementById("panel") as HTMLButtonElement;
-const languageSelect = document.getElementById("language") as HTMLSelectElement;
 const optionsLink = document.getElementById("options") as HTMLAnchorElement;
 
 async function init(): Promise<void> {
@@ -21,18 +21,19 @@ async function init(): Promise<void> {
     statusEl.textContent = settings.enabled ? "Activo" : "Desactivado";
     toggleBtn.textContent = settings.enabled ? "Desactivar" : "Activar";
     toggleBtn.classList.toggle("off", !settings.enabled);
-    languageSelect.value = settings.language;
+    languageSelect.value = settings.language === "de" ? "de-DE" : settings.language;
   }
+
+  languageSelect.addEventListener("change", async () => {
+    settings.language = languageSelect.value;
+    await saveSettings({ language: settings.language });
+    render();
+  });
 
   toggleBtn.addEventListener("click", async () => {
     settings.enabled = !settings.enabled;
     await saveSettings({ enabled: settings.enabled });
     render();
-  });
-
-  languageSelect.addEventListener("change", async () => {
-    settings.language = languageSelect.value;
-    await saveSettings({ language: settings.language });
   });
 
   siteBtn.addEventListener("click", async () => {

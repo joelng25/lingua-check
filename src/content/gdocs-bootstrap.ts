@@ -31,12 +31,22 @@ patchUserActivation();
 
 window.addEventListener("message", (event: MessageEvent) => {
   if (event.source !== window) return;
-  const data = event.data as DocsBridgeCommand | null;
-  if (!data || data.source !== BRIDGE_SOURCE || data.type !== "replace") return;
-  handleDocsCommand(data);
+  const data = event.data as DocsBridgeMessage | null;
+  if (!data || data.source !== BRIDGE_SOURCE) return;
+
+  if (data.type === "replace") {
+    handleDocsCommand(data);
+    return;
+  }
+
+  if (data.type === "set-native-spellcheck-suppressed") {
+    if (data.active) {
+      scheduleDocsSpellSuppression();
+    }
+  }
 });
 
-interface DocsBridgeCommand {
+interface DocsBridgeReplace {
   source: typeof BRIDGE_SOURCE;
   type: "replace";
   clientX: number;
@@ -44,6 +54,134 @@ interface DocsBridgeCommand {
   clientY: number;
   selectLength: number;
   replacement: string;
+}
+
+interface DocsBridgeSpellSuppression {
+  source: typeof BRIDGE_SOURCE;
+  type: "set-native-spellcheck-suppressed";
+  active: boolean;
+}
+
+type DocsBridgeMessage = DocsBridgeReplace | DocsBridgeSpellSuppression;
+
+const SPELLING_MENU_LABELS = [
+  "spelling and grammar",
+  "ortografía y gramática",
+  "ortografia y gramatica",
+];
+
+const SPELLING_TOGGLE_LABELS = [
+  "show spelling suggestions",
+  "mostrar sugerencias ortográficas",
+  "mostrar sugerencias de ortografia",
+  "mostrar sugerencias ortograficas",
+];
+
+const GRAMMAR_TOGGLE_LABELS = [
+  "show grammar suggestions",
+  "mostrar sugerencias gramaticales",
+  "mostrar sugerencias de gramática",
+  "mostrar sugerencias de gramatica",
+];
+
+const TOOLS_MENU_LABELS = ["tools", "herramientas"];
+
+let docsSpellSuppressionTimers: number[] = [];
+
+function scheduleDocsSpellSuppression(): void {
+  for (const timer of docsSpellSuppressionTimers) {
+    window.clearTimeout(timer);
+  }
+  docsSpellSuppressionTimers = [];
+
+  const delays = [0, 3000, 8000];
+  for (const delay of delays) {
+    const timer = window.setTimeout(() => {
+      suppressGoogleDocsSpellSuggestions();
+    }, delay);
+    docsSpellSuppressionTimers.push(timer);
+  }
+}
+
+function normalizeLabel(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .trim()
+    .toLowerCase();
+}
+
+function matchesAnyLabel(text: string, labels: string[]): boolean {
+  const normalized = normalizeLabel(text);
+  return labels.some((label) => normalized.includes(normalizeLabel(label)));
+}
+
+function findClickableByLabels(labels: string[]): HTMLElement | null {
+  for (const element of document.querySelectorAll<HTMLElement>(
+    "[aria-label], [role='menuitem'], .goog-menuitem, .goog-menuitem-content, button",
+  )) {
+    const text = `${element.getAttribute("aria-label") ?? ""} ${element.textContent ?? ""}`.trim();
+    if (matchesAnyLabel(text, labels)) {
+      return element;
+    }
+  }
+  return null;
+}
+
+function isMenuItemChecked(element: HTMLElement): boolean {
+  const host = element.closest<HTMLElement>("[role='menuitemcheckbox'], .goog-menuitem");
+  if (!host) return true;
+  if (host.getAttribute("aria-checked") === "true") return true;
+  return host.classList.contains("goog-menuitem-checked");
+}
+
+function openToolsMenu(): boolean {
+  const tools = findClickableByLabels(TOOLS_MENU_LABELS);
+  if (!tools) return false;
+  tools.click();
+  return true;
+}
+
+function openSpellingSubmenu(): boolean {
+  const spellingMenu = findClickableByLabels(SPELLING_MENU_LABELS);
+  if (!spellingMenu) return false;
+  spellingMenu.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+  spellingMenu.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+  spellingMenu.click();
+  return true;
+}
+
+function disableCheckedMenuOption(labels: string[]): boolean {
+  const option = findClickableByLabels(labels);
+  if (!option) return false;
+  if (!isMenuItemChecked(option)) return true;
+  option.click();
+  return true;
+}
+
+function closeOpenMenus(): void {
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true }),
+  );
+}
+
+function suppressGoogleDocsSpellSuggestions(): boolean {
+  if (!openToolsMenu()) return false;
+
+  window.setTimeout(() => {
+    if (!openSpellingSubmenu()) {
+      closeOpenMenus();
+      return;
+    }
+
+    window.setTimeout(() => {
+      disableCheckedMenuOption(SPELLING_TOGGLE_LABELS);
+      disableCheckedMenuOption(GRAMMAR_TOGGLE_LABELS);
+      closeOpenMenus();
+    }, 120);
+  }, 120);
+
+  return true;
 }
 
 function patchUserActivation(): void {
@@ -232,7 +370,7 @@ function deleteCharsRight(
   }
 }
 
-function handleDocsCommand(command: DocsBridgeCommand): void {
+function handleDocsCommand(command: DocsBridgeReplace): void {
   if (command.type !== "replace") return;
 
   const replacement = command.replacement ?? "";

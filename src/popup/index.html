@@ -121,11 +121,13 @@
         border: 1px solid var(--border);
       }
 
-      .shortcut {
+      .shortcut,
+      .hint {
         margin: 0 0 12px;
         font-size: 12px;
         color: var(--muted);
       }
+
     </style>
   </head>
   <body>
@@ -142,12 +144,17 @@
     <label>
       Idioma
       <select id="language">
+        <option value="auto">Detectar automáticamente</option>
         <option value="es">Español</option>
         <option value="en-US">English (US)</option>
         <option value="en-GB">English (UK)</option>
         <option value="fr">Français</option>
-        <option value="de">Deutsch</option>
+        <option value="de-DE">Deutsch</option>
         <option value="pt-BR">Português (BR)</option>
+        <option value="pt-PT">Português (PT)</option>
+        <option value="it">Italiano</option>
+        <option value="nl">Nederlands</option>
+        <option value="ca">Català</option>
       </select>
     </label>
 

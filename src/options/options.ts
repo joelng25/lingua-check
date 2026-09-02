@@ -88,7 +88,7 @@ async function init(): Promise<void> {
   const settings = await getSettings();
   applyTheme(settings.theme);
 
-  languageSelect.value = settings.language;
+  languageSelect.value = settings.language === "de" ? "de-DE" : settings.language;
   themeSelect.value = settings.theme;
   checkLevelSelect.value = settings.checkLevel || "picky";
   debounceInput.value = String(settings.debounceMs);

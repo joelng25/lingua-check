@@ -170,25 +170,44 @@ function getDocsMatchRects(editor: HTMLElement, match: GrammarMatch): DOMRect[] 
   const affected = getSegmentsForRange(editor, match.offset, match.length);
   if (affected.length === 0) return [];
 
-  return affected.flatMap((segment) => {
+  const rects: DOMRect[] = [];
+
+  for (const segment of affected) {
     const localStart = Math.max(0, match.offset - segment.start);
     const localEnd = Math.min(segment.text.length, match.offset + match.length - segment.start);
     const full = segment.element.getBoundingClientRect();
 
-    // Canvas lines: approximate underline within the line by character ratio.
     if (segment.element instanceof SVGRectElement || segment.element.closest("svg")) {
-      if (segment.text.length === 0) return [full];
+      if (segment.text.length === 0) {
+        rects.push(full);
+        continue;
+      }
+
+      // Per-letter SVG boxes: use the element's own box (merge happens in overlay).
+      if (segment.text.length <= 2 || localStart === 0 && localEnd === segment.text.length) {
+        rects.push(full);
+        continue;
+      }
+
       const ratioStart = localStart / segment.text.length;
       const ratioEnd = localEnd / segment.text.length;
       const width = Math.max(4, full.width * (ratioEnd - ratioStart));
       const left = full.left + full.width * ratioStart;
-      return [
-        new DOMRect(left, full.bottom - Math.max(2, full.height * 0.12), width, Math.max(2, full.height * 0.12)),
-      ];
+      rects.push(
+        new DOMRect(
+          left,
+          full.bottom - Math.max(2, full.height * 0.12),
+          width,
+          Math.max(2, full.height * 0.12),
+        ),
+      );
+      continue;
     }
 
-    return Array.from(segment.element.getClientRects());
-  });
+    rects.push(...Array.from(segment.element.getClientRects()));
+  }
+
+  return rects;
 }
 
 function applyDocsReplacement(
