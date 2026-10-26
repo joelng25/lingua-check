@@ -1,8 +1,9 @@
+import { isCurrentCheck } from "../shared/check-version";
 import { matchOccurrenceKey } from "../shared/match-filters";
 import { toPanelMatchItems } from "../shared/panel-state";
 import { getSettings, isSiteDisabled } from "../shared/storage";
 import type { GrammarMatch, Settings } from "../shared/types";
-import { createFieldAdapter, getFieldSelection, type FieldAdapter } from "./field-adapter";
+import { createFieldAdapter, getFieldSelection, isSafeToCheck, type FieldAdapter } from "./field-adapter";
 import { OverlayManager } from "./overlay";
 import { registerShortcuts } from "./shortcuts";
 import { setNativeSpellcheckSuppressed, suppressElementSpellcheck } from "./suppress-native-spellcheck";
@@ -17,6 +18,7 @@ const overlay = new OverlayManager();
 const debounceTimers = new WeakMap<FieldAdapter, number>();
 const activeFields = new Map<HTMLElement, FieldAdapter>();
 const ignoredOccurrences = new Set<string>();
+const checkVersions = new WeakMap<FieldAdapter, number>();
 const fieldLanguages = new WeakMap<FieldAdapter, string>();
 
 let settingsCache: Settings = {
@@ -201,6 +203,7 @@ function isFieldFocused(adapter: FieldAdapter): boolean {
 }
 
 function getAdapterForElement(element: HTMLElement): FieldAdapter | null {
+  if (!isSafeToCheck(element)) return null;
   if (activeFields.has(element)) {
     return activeFields.get(element) ?? null;
   }
@@ -296,6 +299,7 @@ function detachField(element: HTMLElement): void {
 }
 
 function scheduleCheck(adapter: FieldAdapter): void {
+  checkVersions.set(adapter, (checkVersions.get(adapter) ?? 0) + 1);
   const existing = debounceTimers.get(adapter);
   if (existing) window.clearTimeout(existing);
 
@@ -334,7 +338,9 @@ function syncPanel(text: string, matches: GrammarMatch[]): void {
 }
 
 async function checkField(adapter: FieldAdapter): Promise<void> {
-  if (!enabled) return;
+  const version = (checkVersions.get(adapter) ?? 0) + 1;
+  checkVersions.set(adapter, version);
+  if (!enabled || !isSafeToCheck(adapter.element)) return;
 
   const scope = adapter.getCheckScope();
   const fullText = adapter.getText();
@@ -356,7 +362,8 @@ async function checkField(adapter: FieldAdapter): Promise<void> {
       },
     });
 
-    if (!response?.ok) return;
+    if (!response?.ok || !enabled || !isCurrentCheck(version, checkVersions.get(adapter), fullText, adapter.getText()) ||
+        !isSafeToCheck(adapter.element) || activeFields.get(adapter.element) !== adapter) return;
 
     const rawMatches = (response.matches ?? []) as GrammarMatch[];
     const matches = rawMatches

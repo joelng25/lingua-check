@@ -49,8 +49,16 @@ function isTopLevelContentEditable(element: Element): element is HTMLElement {
   );
 }
 
+export function isSafeToCheck(element: HTMLElement): boolean {
+  if (element.closest('[data-lingua-check-ignore], [data-sensitive], [data-private]')) return false;
+  const autocomplete = (element.getAttribute('autocomplete') || '').toLowerCase().split(/\s+/);
+  if (autocomplete.some(value => /password|^cc-|^one-time-code$/.test(value))) return false;
+  if (element instanceof HTMLInputElement && !['text', ''].includes(element.type.toLowerCase())) return false;
+  return true;
+}
+
 export function isEditableField(element: Element | null): element is HTMLElement {
-  if (!element) return false;
+  if (!element || !(element instanceof HTMLElement) || !isSafeToCheck(element)) return false;
   if (isInputField(element)) return !isInsideContentEditable(element);
   return isTopLevelContentEditable(element);
 }
@@ -59,13 +67,13 @@ export function getEditableFields(root: ParentNode = document): HTMLElement[] {
   const fields = new Set<HTMLElement>();
 
   for (const element of root.querySelectorAll(INPUT_SELECTOR)) {
-    if (isInputField(element) && !isInsideContentEditable(element)) {
+    if (element instanceof HTMLElement && isSafeToCheck(element) && isInputField(element) && !isInsideContentEditable(element)) {
       fields.add(element);
     }
   }
 
   for (const element of root.querySelectorAll(CONTENTEDITABLE_SELECTOR)) {
-    if (isTopLevelContentEditable(element)) {
+    if (element instanceof HTMLElement && isSafeToCheck(element) && isTopLevelContentEditable(element)) {
       fields.add(element);
     }
   }
@@ -74,11 +82,12 @@ export function getEditableFields(root: ParentNode = document): HTMLElement[] {
 }
 
 export function createFieldAdapter(element: HTMLElement): FieldAdapter | null {
+  if (!isSafeToCheck(element)) return null;
   if (isInputField(element)) {
     return createInputAdapter(element);
   }
 
-  if (isTopLevelContentEditable(element)) {
+  if (element instanceof HTMLElement && isSafeToCheck(element) && isTopLevelContentEditable(element)) {
     return createContentEditableAdapter(element);
   }
 

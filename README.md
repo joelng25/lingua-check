@@ -4,6 +4,10 @@ Chrome extension (Manifest V3) that checks **spelling and grammar in real time**
 
 **Privacy policy:** https://joelng25.github.io/lingua-check/
 
+## Privacy in practice
+
+Checks run automatically after typing pauses (700 ms by default). Eligible text is sent to the public LanguageTool API, or your configured server; up to 2,500 characters of surrounding text may also be sent for automatic language detection. Transmission can repeat as the text changes. Password, email, URL, search and payment/autofill-code inputs, plus fields marked `data-lingua-check-ignore`, `data-sensitive` or `data-private`, are excluded. Ordinary text can still contain personal information: disable checking on confidential sites. Old responses are discarded when text changes or a newer check starts.
+
 ---
 
 ## Features
