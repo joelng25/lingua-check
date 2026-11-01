@@ -1,0 +1,2 @@
+- Check sensitive-field eligibility at discovery and network boundaries, including custom site adapters.
+- Reject responses for older checks or changed text to avoid stale corrections.
